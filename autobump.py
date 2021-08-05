@@ -179,10 +179,10 @@ Generate commit.
         '-v', '--verbose', dest='noisy', action='store_true',
         help='enable verbose status messages')
     l_parser.add_argument(
-        '-r', '--remote', default='github.ibm.com', 
+        '-r', '--remote', default='github.com', 
         help='set remote value to scan for')
     l_parser.add_argument(
-        '-o', '--org', default='openbmc', 
+        '-o', '--org', default='ibm-openbmc', 
         help='set org value to scan for')
 
     return l_parser.parse_args(i_args)
