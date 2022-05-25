@@ -231,7 +231,7 @@ def get_closed_issues(i_repo, i_commit):
             pr_number = int(num_match.group(1))
 #            print pr_number
             pull_data = i_repo.get_pull(pr_number)
-            cq_matches = re.findall('fixes[: ]+([S|F]W[0-9]+)',pull_data.body,flags=re.I)
+            cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',pull_data.body,flags=re.I)
             if cq_matches:
                 for cq in cq_matches:
                     link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
