@@ -88,10 +88,10 @@ fgh.py -B 1020 -d
 
 
 gh pr create -R github.ibm.com/openbmc/openbmc -B 1020 -b '#### 1020: meta-ibm: Add hostfw image support (#214)
-```
+\`\`\`
 Add support for a hostfw image.
 
 Change-Id: I1b4be263b0eb44c324db4f41ea563fdf2a8ad8b5
-Signed-off-by: Adriana Kobylak <anoo@us.ibm.com>```' -t '1020: meta-ibm: Add hostfw image support (#214)'
+Signed-off-by: Adriana Kobylak <anoo@us.ibm.com>\`\`\`' -t '1020: meta-ibm: Add hostfw image support (#214)'
 
 ```
