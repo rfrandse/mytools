@@ -95,3 +95,34 @@ Change-Id: I1b4be263b0eb44c324db4f41ea563fdf2a8ad8b5
 Signed-off-by: Adriana Kobylak <anoo@us.ibm.com>\`\`\`' -t '1020: meta-ibm: Add hostfw image support (#214)'
 
 ```
+* del-branch.py
+```
+Useful to delete branches in a bulk
+Its a cut and paste program because I want to be carefull what is deleted. 
+I have my github.ibm.com/openbmc/openbmc set to delete branch after merging. 
+
+git fetch --all -p
+Fetching mypr
+From github.ibm.com:rfrandse/openbmc
+ - [deleted]               (none)     -> mypr/1020g-bmcweb
+ - [deleted]               (none)     -> mypr/1020g-fan
+ - [deleted]               (none)     -> mypr/1020g-pldm
+ - [deleted]               (none)     -> mypr/1020g-power
+
+
+running tool here is what it looks like, Carriage return after list then ctrl-d
+
+del-branch.py 
+Enter/Paste your list of branches to delete. ctrl-d to execute .
+ - [deleted]               (none)     -> mypr/1020g-bmcweb
+ - [deleted]               (none)     -> mypr/1020g-fan
+ - [deleted]               (none)     -> mypr/1020g-pldm
+ - [deleted]               (none)     -> mypr/1020g-power
+
+
+['-D', '1020g-bmcweb', '1020g-fan', '1020g-pldm', '1020g-power']
+Deleted branch 1020g-bmcweb (was 674ccde0c9).
+Deleted branch 1020g-fan (was a4fec3a905).
+Deleted branch 1020g-pldm (was b495325a23).
+Deleted branch 1020g-power (was 3abaaef021).
+```
