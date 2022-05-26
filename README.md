@@ -101,6 +101,8 @@ Useful to delete branches in a bulk
 Its a cut and paste program because I want to be carefull what is deleted. 
 I have my github.ibm.com/openbmc/openbmc set to delete branch after merging. 
 
+The program grabs everything at the end of a line after the back-slash
+
 git fetch --all -p
 Fetching mypr
 From github.ibm.com:rfrandse/openbmc
