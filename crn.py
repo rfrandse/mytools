@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import argparse
@@ -300,7 +300,7 @@ def get_closed_issues(i_repo, i_commit):
 
 
                 
-    print l_notes
+    print(l_notes)
     l_closed_issues = list(dict.fromkeys(l_closed_issues))
     l_notes = list(dict.fromkeys(l_notes))
 
@@ -435,7 +435,7 @@ def git_clone_or_reset(repo_name, url, args):
     if not os.path.exists(repo_name):
         log('cloning into {}...'.format(repo_name), args)
         git_clone(repo_name, url)
-        print 'clone worked:{}'.format(os.path.exists(repo_name))
+        print('clone worked:{}'.format(os.path.exists(repo_name)))
     else:
         log('{} exists, updating...'.format(repo_name), args)
         git_fetch(_cwd=repo_name)
@@ -647,29 +647,29 @@ def main(i_args):
 
   
     # Print commit information to the console
-    print '## %s' %  (l_args.latest_commit)
-    print 'from %s to %s' % (l_args.earliest_commit,l_args. latest_commit)
+    print('## %s' %  (l_args.latest_commit))
+    print('from %s to %s' % (l_args.earliest_commit,l_args. latest_commit))
 
 
     if len(l_issues):
-        print 'Fixes:'
+        print('Fixes:')
         for l_issue in l_issues:
-            print '* %s' % (l_issue)
-        print '---'
+            print('* %s' % (l_issue))
+        print('---')
 
     if len(l_notes):
-        print 'Release Notes:'
+        print('Release Notes:')
         for l_note in l_notes:
             if l_note:
-                print '* %s' % (l_note)
+                print('* %s' % (l_note))
 
-    print 'Commits...'
+    print('Commits...')
     for l_report in l_reports:
-        print l_report.to_cl_string()
+        print(l_report.to_cl_string())
 
     # Write to the wiki file if the user set the flag
     if l_args.wiki:
-        print 'Writing to Wiki file...'
+        print('Writing to Wiki file...')
         l_wiki_file = open(l_args.wiki, 'w+')
         header='## %s \n' % (l_args.latest_commit)
         header += "from %s to %s\n" % (l_args.earliest_commit,l_args. latest_commit)
@@ -701,7 +701,7 @@ def main(i_args):
    
     # Write to the HTML file if the user set the flag
     if l_args.html_file:
-        print 'Writing to HTML file...'
+        print('Writing to HTML file...')
         l_html_file = open(l_args.html_file, 'w+')
         l_html_file.write('<html><body>\n')
         for l_report in l_reports:
@@ -713,7 +713,7 @@ def main(i_args):
         for l_issue in l_issues:
             link = ''
             if l_issue[2]:
-                print l_issue[2]
+                print(l_issue[2])
                 l_link = "https://w3.rchland.ibm.com/projects/bestquest/?defect=%s" % l_issue[2]
                 l_html_file.write('<div><a href='+ l_link \
                     +'href="http://www.github.com/' \

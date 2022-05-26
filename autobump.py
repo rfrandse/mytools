@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 
 import argparse
@@ -126,8 +126,8 @@ def find_and_process_bumps(args):
         project_name, recipe_sha = extract_sha_from_recipe(args, recipe)
         if project_name in args.project_name:
             if args.dry_run:
-                print project_name
-                print recipe
+                print(project_name)
+                print(recipe)
             recipe_basename = os.path.basename(recipe) 
             if project_sha == recipe_sha:
                 message_args = (recipe_basename, recipe_sha[:10])
@@ -152,8 +152,8 @@ def find_and_process_bumps(args):
             if  not args.dry_run:
                 git_commit(commit_msg)
             else:
-                print "dry run"
-                print commit_msg
+                print("dry run")
+                print(commit_msg)
 
 def parse_arguments(i_args):
 

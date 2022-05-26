@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ##
 # Copyright c 2016 IBM Corporation
@@ -138,20 +138,20 @@ def main(i_args):
         l_issues.extend(l_report.get_all_closed_issues())
 
     # Print commit information to the console
-    print 'Commits...'
+    print('Commits...')
     for l_report in l_reports:
-        print l_report.to_cl_string()
-    print 'Closed issues...'
+        print(l_report.to_cl_string())
+    print('Closed issues...')
     for l_issue in l_issues:
-        print '%10s' % (l_issue[2]),
-        print '  ' + str(l_issue[0].encode('utf-8')) + ' ' + str(l_issue[1].encode('utf-8'))
-    print 'Insertions and deletions...'
-    print str(l_total_insertions) + ' insertions'
-    print str(l_total_deletions) + ' deletions'
+        print('%10s' % (l_issue[2]),)
+        print('  ' + str(l_issue[0].encode('utf-8')) + ' ' + str(l_issue[1].encode('utf-8')))
+    print('Insertions and deletions...')
+    print(str(l_total_insertions) + ' insertions')
+    print(str(l_total_deletions) + ' deletions')
 
     # Write to the HTML file if the user set the flag
     if l_args.html_file:
-        print 'Writing to HTML file...'
+        print('Writing to HTML file...')
         l_html_file = open(l_args.html_file, 'w+')
         l_html_file.write('<html><body>\n')
         for l_report in l_reports:
@@ -163,7 +163,7 @@ def main(i_args):
         for l_issue in l_issues:
             link = ''
             if l_issue[2]:
-                print l_issue[2]
+                print(l_issue[2])
                 l_link = "https://w3.rchland.ibm.com/projects/bestquest/?defect=%s" % l_issue[2]
                 l_html_file.write('<div><a href='+ l_link \
                     +'href="http://www.github.com/' \
@@ -181,7 +181,7 @@ def main(i_args):
 
     # Write to the JSON file if the user set the flag
     if l_args.json_file:
-        print 'Writing to JSON file...'
+        print('Writing to JSON file...')
         l_json_file = open(l_args.json_file, 'w+')
         l_json_file.write(CommitReportEncoder().encode(l_reports))
         l_json_file.close()
@@ -253,7 +253,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
 
     # Get the repo that the user requested
     l_repo = get_repo(i_repo_uri)
-    print "id: " + str(l_repo.id)
+    print("id: " + str(l_repo.id))
     l_reports = []
     try:
         
@@ -320,7 +320,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
             # Put the report on the end of the list
             l_reports.append(l_report)
     except:
-        print "exception in generate_commit_reports: do nothing"
+        print("exception in generate_commit_reports: do nothing")
     return l_reports
 
 ###############################################################################
@@ -425,7 +425,7 @@ def get_repo(i_uri):
 #            print "Found Master"
             l_repo_name = l_values[count+1] + "/" + l_values[count+2] #@rf
             l_repo_name = rreplace(l_repo_name, ".git", '', 1)
-            print l_repo_name
+            print(l_repo_name)
             l_github = Github(login_or_token = config.py_token)
             l_repo = l_github.get_repo(l_repo_name)
         count += 1
@@ -484,16 +484,16 @@ def get_closed_issues(i_commit):
 
     # Loop through all the matches getting each issue name
     for l_match in l_matches:
-        print "i_commit.commit.message"
-        print i_commit.commit.message
-        print "~~~~"
+        print("i_commit.commit.message")
+        print(i_commit.commit.message)
+        print("~~~~")
 
-        print "l_match.group",
-        print l_match.group()
+        print("l_match.group",)
+        print(l_match.group())
         l_issue_id = l_match.group('issue')
         l_issue_title, l_cq_number = get_issue_title(l_issue_id)
         l_closed_issues.append((l_issue_id, l_issue_title, l_cq_number))
-        print "found %s" % l_issue_id
+        print("found %s" % l_issue_id)
 
     insensitive = re.compile(re.escape('cherry-pick'), re.I)
     l_pick = insensitive.findall(i_commit.commit.message)
@@ -540,7 +540,7 @@ def get_closed_issues(i_commit):
                     l_issue_id = l_match.group('issue')
                     l_issue_title, l_cq_number = get_issue_title(l_issue_id)
                     l_closed_issues.append((l_issue_id, l_issue_title, l_cq_number))
-                    print "cherry-pick or patch found %s" % l_issue_id
+                    print("cherry-pick or patch found %s" % l_issue_id)
 
     return l_closed_issues
 
@@ -552,16 +552,16 @@ def get_closed_issues(i_commit):
 # @return The title of the issue
 ###############################################################################
 def get_issue_title(i_issue_id):
-    print "i_issue_id:",
-    print i_issue_id
+    print("i_issue_id:",)
+    print(i_issue_id)
 
     # Construct the URL
     l_url_tail = re.sub('#', '/issues/', i_issue_id)
     l_full_url = 'https://api.github.com/repos/' + l_url_tail
     l_title = ''
     l_cq_number = ''
-    print "l_full_url:",
-    print l_full_url
+    print("l_full_url:",)
+    print(l_full_url)
     # Send in the web request
     l_response = requests.get(l_full_url, auth=GITHUB_AUTH)
     if 200 == l_response.status_code:
