@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 from github import Github
 import config
@@ -133,8 +133,8 @@ def find_and_process_bumps(args):
         project_name, recipe_sha = extract_sha_from_recipe(args, recipe)
         if project_name in args.project_name:
             if args.dry_run:
-                print project_name
-                print recipe
+                print(project_name)
+                print(recipe)
             recipe_basename = os.path.basename(recipe) 
             if project_sha == recipe_sha:
                 banner = "!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*"
@@ -202,8 +202,8 @@ def find_and_process_bumps(args):
             if  not args.dry_run:
                 git_commit(commit_msg)
             else:
-                print "dry run"
-                print commit_msg
+                print("dry run")
+                print(commit_msg)
 
 def parse_arguments(i_args):
 
@@ -266,14 +266,14 @@ def get_repo(i_uri):
     for l_value in l_values:
         if 'github.ibm.com' in l_value:
             l_repo_name = l_values[count+1] + "/" + rchop(l_values[count+2],'.git')
-            print l_repo_name
+            print(l_repo_name)
             l_github = Github(login_or_token = config.py_ibm_token, base_url='https://github.ibm.com/api/v3')
             l_repo = l_github.get_repo(l_repo_name)
         
         elif 'github.com' in l_value:
             l_repo_name = l_values[count+1] + "/" + l_values[count+2]
             l_repo_name = rreplace(l_repo_name, ".git", '', 1)
-            print l_repo_name
+            print(l_repo_name)
             l_github = Github(login_or_token = config.py_token)
             l_repo = l_github.get_repo(l_repo_name)
         count += 1

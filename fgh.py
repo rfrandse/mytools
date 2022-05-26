@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import argparse
@@ -13,7 +13,7 @@ def git_show(parms_array):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
-    print stderroutput
+    print(stderroutput)
     return stdoutput
 
 def git_log(parms_array):
