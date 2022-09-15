@@ -14,6 +14,8 @@ import json
 import subprocess
 PIPE = subprocess.PIPE
 
+import shlex
+
 workspace_dir = os.getcwd()
 
 
@@ -211,6 +213,44 @@ def to_prefix_name_rev(i_name_rev):
 #    l_name_rev = l_hash[0:7] + ' ' + l_name
     return l_name_rev
 
+
+def find_fixes(i_data):
+
+    l_closed_issues = []
+
+    cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',i_data,flags=re.I)
+    if cq_matches:      
+        for cq in cq_matches:
+            logging.info(cq)
+            l_closed_issues.append(cq)
+        
+    ewm_matches = re.findall('fixes *(PE\w+)',i_data,flags=re.I)
+    if ewm_matches:
+        for ewm in ewm_matches:
+            logging.info(ewm)
+            l_closed_issues.append(ewm)
+
+    return l_closed_issues
+
+def find_notes(i_data):
+
+    l_notes = []
+    
+    release_notes = re.search(r'Release note[: ](.*)',i_data,flags=re.I | re.DOTALL)
+    if release_notes:
+        lines =  release_notes.group(1).splitlines()
+        for line in lines:
+            if "::" in line:
+                note = line.split('::')
+                l_notes.append(note[0].encode("utf8").strip())
+                break
+            else:
+                l_notes.append(line.encode("utf8").strip())
+
+    return l_notes
+
+
+
 def get_closed_issues(i_repo, i_commit):
 
     l_closed_issues = []
@@ -229,53 +269,25 @@ def get_closed_issues(i_repo, i_commit):
         num_match = re.search('\(#([0-9]+)\)$',l_summary)
         if num_match:
             pr_number = int(num_match.group(1))
-#            print pr_number
             pull_data = i_repo.get_pull(pr_number)
-            cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',pull_data.body,flags=re.I)
-            if cq_matches:
-                for cq in cq_matches:
-                    link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
-                    l_closed_issues.append(link)
+            l_closed_issues.extend(find_fixes(pull_data.body))
+            
             pull_comments = pull_data.get_issue_comments()
             for comment in pull_comments:
 #                print comment.body
-                #cq_matches = re.findall('fixes[: ]+([S|F]W[0-9]+)',comment.body,flags=re.I)
-                cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',comment.body,flags=re.I)
-                if cq_matches:
-                    for cq in cq_matches:
-                        link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
-                        l_closed_issues.append(link)
-                release_notes = re.search(r'Release note[: ](.*)',comment.body,flags=re.I | re.DOTALL)
-                if release_notes:
-                    lines =  release_notes.group(1).splitlines()
-                    for line in lines:
-                        if "::" in line:
-                            note = line.split('::')
-                            l_notes.append(note[0].encode("utf8").strip())
-                            break
-                        else:
-                            l_notes.append(line.encode("utf8").strip())
+                l_closed_issues.extend(find_fixes(comment.body))
+                l_notes.extend(find_notes(comment.body))
 
         num_match = re.search('Merge pull request #([0-9]+)',l_summary)
         if num_match:
             pr_number = int(num_match.group(1))
             pull_data = i_repo.get_pull(pr_number)
-            cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',pull_data.body,flags=re.I)
+            l_closed_issues.extend(find_fixes(pull_data.body))
 
-            if cq_matches:
-                for cq in cq_matches:
-                    link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
-                    l_closed_issues.append(link)
             pull_comments = pull_data.get_issue_comments()
             for comment in pull_comments:
-                cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',comment.body,flags=re.I)
-
-                if cq_matches:
-                    for cq in cq_matches:
-                        link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
-                        l_closed_issues.append(link)
-#                release_notes = re.search('Release note[: ]+(*)',comment.body,flags=re.I)
-#                print release_notes
+                l_closed_issues.extend(find_fixes(comment.body))
+                l_notes.extend(find_notes(comment.body))
 
         
     elif 'github.com' in  i_commit.commit.url:
@@ -291,12 +303,8 @@ def get_closed_issues(i_repo, i_commit):
                         pull_data = i_repo.get_pull(pr_data['number'])
                         pull_comments = pull_data.get_issue_comments()
                         for comment in pull_comments:
-                            cq_matches = re.findall('fixes.+([S|F]W[0-9]+).*',comment.body,flags=re.I)
-                            if cq_matches:
-                                for cq in cq_matches:
-                                    link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
-                                    l_closed_issues.append(link)
-
+                            l_closed_issues.extend(find_fixes(comment.body))
+                            l_notes.extend(find_notes(comment.body))
 
 
                 
@@ -313,6 +321,9 @@ def list_of_pull_requests(i_repo):
     pull_dict = dict()
 
     pulls = i_repo.get_pulls(state='closed', sort='updated' ,direction='desc')
+
+
+#    commit_msg_dict.setdefault(l_commit.commit.message.encode('ascii','ignore'), []).append(l_commit.sha)
 
     for pr in pulls:     
         logging.info(pr.number)
@@ -331,12 +342,16 @@ def list_of_pull_requests(i_repo):
             logging.info(commit.commit.message)
 
 
+#        logging.info(pr.updated_at)
+#        logging.info(datetime.now())
         dCTM = datetime.now() - pr.updated_at
+#        logging.info(datetime.now() - pr.updated_at)
 
         if dCTM > timedelta(days=1):
             logging.info("delta time works")
             break
         
+#        logging.info(pr.get_comments())
 
 
 def git_clone(repo_name, url):
@@ -406,10 +421,147 @@ def is_sha_commit(sha_value, _cwd):
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
 
+#    if 'fatal' in  stdoutput:
+#        print('fatal')
     os.chdir(saved_cwd)
 
     return('commit' in stdoutput)
 
+def cq_info(cq_number):
+#    print cq_number
+
+    args_str = "cqcmd.pl -db AIXOS -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog -action query  -fields \"force_commit::yes~~sql::SELECT universal_id,headline, Ownerinfo from defect where Universal_id = \'"
+    args_str += "{0}\'\"".format(cq_number)
+#    print args_str
+    cq_args = shlex.split(args_str)
+#    print cq_args
+
+#    args_str = "cqcmd.pl -db AIXOS -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog -action query  -fields \"force_commit::yes~~sql::SELECT universal_id,state,priority,keywords from defect where Universal_id = \'SW403534\'\"" 
+#    print args_str
+
+#    cq_args = shlex.split(args_str)
+#    print cq_args
+    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    return p.stdout.read()
+
+def read_cq_keywords(cq_number):
+    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
+            -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
+            -action query \
+            -fields \"force_commit::yes~~sql::SELECT keywords from defect where Universal_id = \'"
+    args_str += "{0}\'\"".format(cq_number)
+    cq_args = shlex.split(args_str)
+
+
+    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    results = rreplace(p.stdout.read(),'|\n','', 1)
+
+    return results
+
+def write_cq_keywords(cq_number, data):
+
+    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
+        -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
+        -action modify -univid {0} \
+        -fields \"force_commit::yes~~Keywords::{1} \""\
+        .format(cq_number, data)
+
+    
+    cq_args = shlex.split(args_str)
+
+
+    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    return p.stdout.read()
+
+
+
+
+def read_cq_priority_justification(cq_number):
+    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
+            -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
+            -action query \
+            -fields \"force_commit::yes~~sql::SELECT Priority_Justification, keywords from defect where Universal_id = \'"
+    args_str += "{0}\'\"".format(cq_number)
+    cq_args = shlex.split(args_str)
+
+
+    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    results = rreplace(p.stdout.read(),'|\n','', 1)
+
+    return results
+
+def write_cq_priority_justification(cq_number, data):
+
+    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
+        -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
+        -action modify -univid {0} \
+        -fields \"force_commit::yes~~Priority_Justification::{1} \""\
+        .format(cq_number, data)
+
+    
+    cq_args = shlex.split(args_str)
+
+
+    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    return p.stdout.read()
+
+def read_cq_notes(cq_number):
+    l_tag_list = []
+    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
+            -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
+            -action query  -fields \"force_commit::yes~~sql::SELECT Notes_Log from defect where Universal_id = \'"
+    args_str += "{0}\'\"".format(cq_number)
+    cq_args = shlex.split(args_str)
+
+
+    s = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    results =  s.stdout.read()
+
+    return results
+
+def write_cq_note(cq_number, data):
+
+    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
+        -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
+        -action modify -univid {0} \
+        -fields \"force_commit::yes~~Note_Entry::{1} \""\
+        .format(cq_number, data)
+
+    
+    cq_args = shlex.split(args_str)
+
+
+    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    return p.stdout.read()
+
+def check_for_tag(tag_info, data):
+    results = False
+    for line in data.splitlines():
+        if (tag_info in line):
+            results = True
+    return results
+
+def update_keywords(cq_number):
+
+    original_text = read_cq_keywords(cq_number)
+
+    matches = re.findall('merged',original_text,flags=re.I)
+    if matches:
+        return
+    new_text = original_text.strip() + "\nMerged"
+    write_cq_keywords(cq_number, new_text)
+
+
+def update_cq_tag_info(cq_number, tag):
+    tag_info = "OPENBMC_TAG:%s" % tag
+    if not check_for_tag(tag_info, read_cq_notes(cq_number)):
+        write_cq_note(cq_number,tag_info)
+
+    original_text = read_cq_priority_justification(cq_number)
+    if tag_info in original_text:
+        return
+    new_text = tag_info + "\n" + original_text
+    write_cq_priority_justification(cq_number, new_text)
 
 def switch_branch(branch_name, _cwd):
     saved_cwd = os.getcwd()
@@ -459,94 +611,119 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
     logging.info('_repo_uri:{}'.format(i_repo_uri))
 
 
-    l_commits = l_repo.compare(i_begin_commit, i_end_commit).commits
+#    list_of_pull_requests(l_repo)
+
+ #   return
 
 
-    # Go through all commits check for duplicates by using commit message which includes author, date, Change-Id
-
-    for l_commit in l_commits:
-        logging.info(l_commit)
-        
-        l_author = l_commit.commit.author
-        
-        commit_dict.setdefault(l_author.name.encode('ascii','ignore'), []).append(l_commit.commit.message)   
-        commit_msg_dict.setdefault(l_commit.commit.message.encode('ascii','ignore'), []).append(l_commit.sha)
+    try:
+    #    l_compare = l_repo.compare(i_begin_commit, i_end_commit)
+    #    logging.info('total_commits:{}'.format(l_compare.total_commits))    
+    #    logging.info(l_compare.merge_base_commit)
+    #    logging.info(l_compare.merge_base_commit.get_pulls())
 
 
-    for l_commit in l_commits:
-
-        
-
-        # if the sha does match the last one in the key list it's a duplicate so continue to the next commit. 
-        if ((commit_msg_dict[l_commit.commit.message.encode('ascii','ignore')][-1]) != l_commit.sha):
-            continue
+        l_commits = l_repo.compare(i_begin_commit, i_end_commit).commits
 
 
-        logging.info(l_commit.sha)
+        # Go through all commits check for duplicates by using commit message which includes author, date, Change-Id
 
-        # Get the insertion and deletion line counts
-        l_insertions = l_commit.stats.additions
-        l_deletions = l_commit.stats.deletions
-        l_author = l_commit.commit.author
-        l_summary = (l_commit.commit.message).split('\n')[0]
-
-        logging.debug(l_insertions) 
-        logging.debug(l_deletions)
-        logging.debug(l_author.name) 
-        logging.debug(l_summary)
-
-        l_closed_issues, l_notes = get_closed_issues(l_repo, l_commit)
-
-        l_report = CommitReport(
-            i_repo_uri,
-            i_repo_uri.split('/')[-1].replace('.git', ''),
-            str(l_commit.sha),
-            to_prefix_name_rev(l_commit.sha),
-            l_author.name,
-            l_summary,
-            l_insertions,
-            l_deletions,
-            l_closed_issues,
-            l_notes)
+        for l_commit in l_commits:
+            logging.info(l_commit)
             
+    #        pull = l_repo.get_pull(l_commit.sha)
+    #        logging.info(pull)
+            l_author = l_commit.commit.author
             
-        if  "Merge pull request" in l_summary:
+            commit_dict.setdefault(l_author.name.encode('ascii','ignore'), []).append(l_commit.commit.message)   
+            commit_msg_dict.setdefault(l_commit.commit.message.encode('ascii','ignore'), []).append(l_commit.sha)
+
+
+    #        for pull in pulls:
+    #            logging.info(pull.number)
+
+
+    #    return
+
+        for l_commit in l_commits:
+
+            
+
+            # if the sha does match the last one in the key list it's a duplicate so continue to the next commit. 
+            if ((commit_msg_dict[l_commit.commit.message.encode('ascii','ignore')][-1]) != l_commit.sha):
+                continue
+
+
+            logging.info(l_commit.sha)
+
+            # Get the insertion and deletion line counts
+            l_insertions = l_commit.stats.additions
+            l_deletions = l_commit.stats.deletions
+            l_author = l_commit.commit.author
+            l_summary = (l_commit.commit.message).split('\n')[0]
+
+            logging.debug(l_insertions) 
+            logging.debug(l_deletions)
+            logging.debug(l_author.name) 
+            logging.debug(l_summary)
+
+            l_closed_issues, l_notes = get_closed_issues(l_repo, l_commit)
+
+            l_report = CommitReport(
+                i_repo_uri,
+                i_repo_uri.split('/')[-1].replace('.git', ''),
+                str(l_commit.sha),
+                to_prefix_name_rev(l_commit.sha),
+                l_author.name,
+                l_summary,
+                l_insertions,
+                l_deletions,
+                l_closed_issues,
+                l_notes)
+                
+    #            get_closed_issues(l_repo, l_commit))
+                
+            if  "Merge pull request" in l_summary:
+                # Put the report on the end of the list
+                l_reports.append(l_report)
+                # don't process merge pull request it creates duplicates 
+                continue
+
+            # Search the files for any bumps of submodule versions
+            l_files = l_commit.files
+            for l_file in l_files:
+                # If we have two files to compare with diff...
+                if l_file.patch:
+                    # ... get info about the change, log it...
+                    l_subrepo_uri, l_subrepo_new_hash, l_subrepo_old_hash \
+                        = get_bump_info(l_file, l_repo)
+
+                    logging.debug('Found patch...')
+                    logging.debug('  Subrepo URI: ' + str(l_subrepo_uri))
+                    logging.debug('  Subrepo new hash: '
+                                  + str(l_subrepo_new_hash))
+                    logging.debug('  Subrepo old hash: '
+                                  + str(l_subrepo_old_hash))
+                    logging.debug('  Found in: ' + l_file.filename)
+                    
+                    if l_subrepo_new_hash \
+                            and l_subrepo_old_hash \
+                            and l_subrepo_uri \
+                            and l_subrepo_uri.startswith('git'):
+                        logging.debug('  Bumped')
+                        l_subrepo_path = l_subrepo_uri.split('/')[-1]
+                        l_subreports = generate_commit_reports(
+                        l_subrepo_uri,
+                            l_subrepo_old_hash,
+                            l_subrepo_new_hash)
+                        l_report.subreports.extend(l_subreports)
+
             # Put the report on the end of the list
             l_reports.append(l_report)
-            # don't process merge pull request it creates duplicates 
-            continue
 
-        # Search the files for any bumps of submodule versions
-        l_files = l_commit.files
-        for l_file in l_files:
-            # If we have two files to compare with diff...
-            if l_file.patch:
-                # ... get info about the change, log it...
-                l_subrepo_uri, l_subrepo_new_hash, l_subrepo_old_hash \
-                    = get_bump_info(l_file, l_repo)
 
-                logging.debug('Found patch...')
-                logging.debug('  Subrepo URI: ' + str(l_subrepo_uri))
-                logging.debug('  Subrepo new hash: '
-                              + str(l_subrepo_new_hash))
-                logging.debug('  Subrepo old hash: '
-                              + str(l_subrepo_old_hash))
-                logging.debug('  Found in: ' + l_file.filename)
-                
-                if l_subrepo_new_hash \
-                        and l_subrepo_old_hash \
-                        and l_subrepo_uri \
-                        and l_subrepo_uri.startswith('git'):
-                    logging.debug('  Bumped')
-                    l_subrepo_path = l_subrepo_uri.split('/')[-1]
-                    l_subreports = generate_commit_reports(
-                    l_subrepo_uri,
-                        l_subrepo_old_hash,
-                        l_subrepo_new_hash)
-                    l_report.subreports.extend(l_subreports)
-
-        # Put the report on the end of the list
-        l_reports.append(l_report)
+    except:
+        logging.warning("exception in generate_commit_reports: do nothing")
 
 
     return l_reports
@@ -602,6 +779,16 @@ def parse_arguments(i_args):
         default=None,
         help='If set to a file path, this script will write an wiki ' \
              +'markdown version of the console to the file path given')
+    l_parser.add_argument(
+        '--gsa', dest='gsa_tag_info', action='store_true',
+        help='If set this script will write a file <latest_commit>.txt to ' \
+             +'/gsa/ausgsa/projects/b/bmctaglists/ ' \
+             +'latest_commit option text is tag name  ')
+    l_parser.add_argument(
+        '-u','--update', dest='update_cq', action='store_true',
+        help='If set this script will update priority justifcation ' \
+             +'with tag name')
+
 
     return l_parser.parse_args(i_args)
 
@@ -640,21 +827,56 @@ def main(i_args):
         l_issues.extend(l_report.get_all_closed_issues())
         l_notes.extend(l_report.get_all_notes())
 
-    
     l_issues = list(dict.fromkeys(l_issues))
+    print l_issues
+
+    cq_list = sorted(l_issues, key=lambda x: int("".join([i for i in x if i.isdigit()])))
     l_notes = list(dict.fromkeys(l_notes))
 
+    cq_dict = dict()
+    if len(cq_list):
+        for cq in cq_list:
+            fields_list = cq_info(cq)
+            cq_dict.setdefault(cq, []).append(fields_list)   
 
-  
+        if l_args.gsa_tag_info:
+            filename = '/gsa/ausgsa/projects/b/bmctaglists/%s.txt' % (l_args.latest_commit)            
+#            filename = '%s.txt' % (l_args.latest_commit)
+
+            txtfile = open(filename, 'w+')
+
+            for cq in cq_list:
+#                tmpStr = "%s\n" % (cq_dict[cq][-1])
+                txtfile.write(cq_dict[cq][-1])
+
+            txtfile.close() 
+        if l_args.update_cq:
+            for cq in cq_list:
+                print "updating %s with tag info" % cq
+                update_cq_tag_info(cq, l_args.latest_commit)
+                update_keywords(cq)
+
     # Print commit information to the console
     print '## %s' %  (l_args.latest_commit)
     print 'from %s to %s' % (l_args.earliest_commit,l_args. latest_commit)
 
 
-    if len(l_issues):
+    if len(cq_list):
         print 'Fixes:'
-        for l_issue in l_issues:
-            print '* %s' % (l_issue)
+        for cq in cq_list:
+            link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
+            cq_title = "-"
+            cq_fields_list = cq_dict[cq][-1].split('|')
+
+
+#            print cq_fields_list
+            if len(cq_fields_list) <= 2:
+                #This means the information didn't come back correctly 
+                cq_title = "-"
+            else:
+                cq_title = cq_fields_list[1]
+
+            print '* %s:`%s`' % (link, cq_title[0:90])
         print '---'
 
     if len(l_notes):
@@ -674,11 +896,20 @@ def main(i_args):
         header='## %s \n' % (l_args.latest_commit)
         header += "from %s to %s\n" % (l_args.earliest_commit,l_args. latest_commit)
         l_wiki_file.write(header)
-        if len(l_issues):
+        if len(cq_list):
             l_wiki_file.write('\nFixes:\n')
 
-            for l_issue in l_issues:
-                l_wiki_file.write('* %s\n' % (l_issue))
+            for cq in cq_list:
+                link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
+                cq_title = "-"
+                cq_fields_list = cq_dict[cq][-1].split('|')
+                if len(cq_fields_list) <= 2:
+                    #This means the information didn't come back correctly 
+                    cq_title = "-"
+                else:
+                    cq_title = cq_fields_list[1]
+
+                l_wiki_file.write('* %s:`%s`\n' % (link, cq_title[0:90]))
             l_wiki_file.write('\n---')
 
         if len(l_notes):
@@ -693,7 +924,8 @@ def main(i_args):
 
 
         for l_report in l_reports:
-            l_wiki_file.write('%s\n' % l_report.to_string())
+            
+            l_wiki_file.write('%s\n' % l_report.to_string().encode("utf-8"))
  
         l_wiki_file.write("```\n")
 
