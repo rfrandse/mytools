@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import argparse
@@ -15,6 +15,12 @@ import subprocess
 PIPE = subprocess.PIPE
 
 import shlex
+
+sys.path.append("/home/rfrandse/ewm")
+import ewm
+ewm_instance = ewm.Ewm()
+
+
 
 workspace_dir = os.getcwd()
 
@@ -154,6 +160,7 @@ class CommitReport:
         # Do the same for every subreport
         for l_report in self.subreports:
             l_string += '\n' + l_report.to_string(i_level + 1)
+
         return l_string
 
     def to_html(self, i_level=0):
@@ -224,7 +231,7 @@ def find_fixes(i_data):
             logging.info(cq)
             l_closed_issues.append(cq)
         
-    ewm_matches = re.findall('fixes *(PE\w+)',i_data,flags=re.I)
+    ewm_matches = re.findall('fixes[: ]*(PE\w+)',i_data,flags=re.I)
     if ewm_matches:
         for ewm in ewm_matches:
             logging.info(ewm)
@@ -242,10 +249,14 @@ def find_notes(i_data):
         for line in lines:
             if "::" in line:
                 note = line.split('::')
-                l_notes.append(note[0].encode("utf8").strip())
+#                l_notes.append(note[0].encode("utf8").strip())
+                l_notes.append(note[0].strip())
+
                 break
             else:
-                l_notes.append(line.encode("utf8").strip())
+                #l_notes.append(line.encode("utf8").strip())
+                l_notes.append(line.strip())
+
 
     return l_notes
 
@@ -263,13 +274,19 @@ def get_closed_issues(i_repo, i_commit):
     pr_url += "/pulls"
     logging.info(pr_url)
     pull_data = None
+    
     if 'github.ibm.com' in i_commit.commit.url:
         logging.info("processing github.ibm.com")
         logging.info(l_summary)
         num_match = re.search('\(#([0-9]+)\)$',l_summary)
         if num_match:
             pr_number = int(num_match.group(1))
-            pull_data = i_repo.get_pull(pr_number)
+            try:
+                pull_data = i_repo.get_pull(pr_number)
+            except:
+                logging.warning("Unable to process PR:{}".format(pr_number))
+                return l_closed_issues, l_notes
+             
             l_closed_issues.extend(find_fixes(pull_data.body))
             
             pull_comments = pull_data.get_issue_comments()
@@ -308,7 +325,7 @@ def get_closed_issues(i_repo, i_commit):
 
 
                 
-    print l_notes
+    print(l_notes)
     l_closed_issues = list(dict.fromkeys(l_closed_issues))
     l_notes = list(dict.fromkeys(l_notes))
 
@@ -359,6 +376,7 @@ def git_clone(repo_name, url):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
     if 'fatal' in  stdoutput:
         print('fatal git_clone')
 
@@ -372,6 +390,7 @@ def git_fetch(_cwd):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
     if 'fatal' in  stdoutput:
         print('fatal git_fetch')
     os.chdir(saved_cwd)
@@ -385,6 +404,7 @@ def git_reset(_cwd):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
     if 'fatal' in  stdoutput:
         print('fatal git_reset')
     os.chdir(saved_cwd)
@@ -401,7 +421,7 @@ def git_branch(_cwd):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
-
+    stdoutput=stdoutput.decode()
     if 'fatal' in  stdoutput:
         print('fatal git_branch')
     os.chdir(saved_cwd)
@@ -420,12 +440,44 @@ def is_sha_commit(sha_value, _cwd):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
-
+    stdoutput=stdoutput.decode()
 #    if 'fatal' in  stdoutput:
 #        print('fatal')
     os.chdir(saved_cwd)
 
     return('commit' in stdoutput)
+
+
+def cq_to_ewm(cq_number):
+
+#    cqcmd.pl -db AIXOS -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -user fspbld@us.ibm.com -relog -action query -fields "force_Commit::yes~~sql::SELECT 
+#    resource_type,resource_name,system_type,system_name,parentdefect,parentdefect.universal_id from ExternalResource 
+#    where  parentdefect.universal_id='SW552582' or parentrequirement.universal_id='SW552582'"
+
+    args_str = "cqcmd.pl -db AIXOS -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog -action query  -fields " 
+    args_str += "\"force_commit::yes~~sql::SELECT  resource_type,resource_name,system_type,system_name,parentdefect,parentdefect.universal_id from ExternalResource "
+    args_str += "where parentdefect.universal_id=\'{}\' or parentrequirement.universal_id=\'{}\'\"".format(cq_number,cq_number)
+
+    cq_args = shlex.split(args_str)
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
+
+    logging.info(stdoutput)
+    lines = stdoutput.splitlines()
+    for line in lines:
+        # Example lines:
+        # defect|1154197|CMVC95|aix@auscmvc.rchland.ibm.com@2035|AIXOS13474966|SW552204
+        # STGDefect|313544|EWM|https://jazz07.rchland.ibm.com:13443/jazz/projects/CSSD|AIXOS13474966|SW552204
+        defect_info = line.split('|')
+        if "STGDefect" in defect_info[0]:
+            return defect_info[1].strip()
+
+    return None
+#    return stdoutput.split('|')[1].strip()
+
+
+
 
 def cq_info(cq_number):
 #    print cq_number
@@ -441,8 +493,11 @@ def cq_info(cq_number):
 
 #    cq_args = shlex.split(args_str)
 #    print cq_args
-    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    return p.stdout.read()
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
+
+    return stdoutput
 
 def read_cq_keywords(cq_number):
     args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
@@ -453,8 +508,11 @@ def read_cq_keywords(cq_number):
     cq_args = shlex.split(args_str)
 
 
-    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    results = rreplace(p.stdout.read(),'|\n','', 1)
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
+
+    results = rreplace(stdoutput,'|\n','', 1)
 
     return results
 
@@ -470,10 +528,25 @@ def write_cq_keywords(cq_number, data):
     cq_args = shlex.split(args_str)
 
 
-    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    return p.stdout.read()
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
+
+    return stdoutput
+
+def read_ewm_priority_justification(ewmId):
+    try:
+        workItem = ewm_instance.display(ewmId)
+        return (workItem["Priority Justification"])
+    except:
+        logging.warning("Unable to read ewm priority justification:{}".format(ewmId))
 
 
+def write_ewm_priority_justification(ewmId, data):
+    try:
+        ewm_instance.modify(id=ewmId,attributes=["Priority Justification:", data])
+    except:
+        logging.warning("Unable to write ewm priority justification:{}".format(data))
 
 
 def read_cq_priority_justification(cq_number):
@@ -485,8 +558,11 @@ def read_cq_priority_justification(cq_number):
     cq_args = shlex.split(args_str)
 
 
-    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    results = rreplace(p.stdout.read(),'|\n','', 1)
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
+
+    results = rreplace(stdoutput,'|\n','', 1)
 
     return results
 
@@ -502,8 +578,11 @@ def write_cq_priority_justification(cq_number, data):
     cq_args = shlex.split(args_str)
 
 
-    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    return p.stdout.read()
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    stdoutput=stdoutput.decode()
+
+    return stdoutput
 
 def read_cq_notes(cq_number):
     l_tag_list = []
@@ -514,8 +593,9 @@ def read_cq_notes(cq_number):
     cq_args = shlex.split(args_str)
 
 
-    s = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    results =  s.stdout.read()
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    results=stdoutput.decode()
 
     return results
 
@@ -531,8 +611,11 @@ def write_cq_note(cq_number, data):
     cq_args = shlex.split(args_str)
 
 
-    p = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    return p.stdout.read()
+    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
+    stdoutput, stderroutput = process.communicate()
+    results=stdoutput.decode()
+
+    return results
 
 def check_for_tag(tag_info, data):
     results = False
@@ -550,6 +633,19 @@ def update_keywords(cq_number):
         return
     new_text = original_text.strip() + "\nMerged"
     write_cq_keywords(cq_number, new_text)
+
+
+def update_ewm_tag_info(ewmId, tag):
+    tag_info = "OPENBMC_TAG:%s" % tag
+#    if not check_for_tag(tag_info, read_cq_notes(ewmId)):
+#        write_cq_note(cq_number,tag_info)
+
+    original_text = read_ewm_priority_justification(ewmId)
+    if tag_info in original_text:
+        return
+    new_text = tag_info + " " + original_text
+    print("Writing",ewmId,":",new_text)
+    write_ewm_priority_justification(ewmId, new_text)
 
 
 def update_cq_tag_info(cq_number, tag):
@@ -573,6 +669,7 @@ def switch_branch(branch_name, _cwd):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
+    stdoutput = stdoutput.decode()
 
     if 'fatal' in  stdoutput:
         print('fatal switch_branch')
@@ -587,7 +684,7 @@ def git_clone_or_reset(repo_name, url, args):
     if not os.path.exists(repo_name):
         log('cloning into {}...'.format(repo_name), args)
         git_clone(repo_name, url)
-        print 'clone worked:{}'.format(os.path.exists(repo_name))
+        print('clone worked:{}'.format(os.path.exists(repo_name)))
     else:
         log('{} exists, updating...'.format(repo_name), args)
         git_fetch(_cwd=repo_name)
@@ -607,6 +704,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
     if l_repo == None:
         return l_reports
 
+
     logging.info("id: " + str(l_repo.id))
     logging.info('_repo_uri:{}'.format(i_repo_uri))
 
@@ -624,7 +722,6 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
 
 
         l_commits = l_repo.compare(i_begin_commit, i_end_commit).commits
-
 
         # Go through all commits check for duplicates by using commit message which includes author, date, Change-Id
 
@@ -648,7 +745,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
         for l_commit in l_commits:
 
             
-
+            
             # if the sha does match the last one in the key list it's a duplicate so continue to the next commit. 
             if ((commit_msg_dict[l_commit.commit.message.encode('ascii','ignore')][-1]) != l_commit.sha):
                 continue
@@ -719,6 +816,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
                         l_report.subreports.extend(l_subreports)
 
             # Put the report on the end of the list
+            logging.info("append l_report")
             l_reports.append(l_report)
 
 
@@ -788,7 +886,10 @@ def parse_arguments(i_args):
         '-u','--update', dest='update_cq', action='store_true',
         help='If set this script will update priority justifcation ' \
              +'with tag name')
-
+    l_parser.add_argument(
+        '-E','--ewm', dest='update_ewm', action='store_true',
+        help='If set this script will update priority justifcation ' \
+             +'with tag name in ewm ')
 
     return l_parser.parse_args(i_args)
 
@@ -828,9 +929,13 @@ def main(i_args):
         l_notes.extend(l_report.get_all_notes())
 
     l_issues = list(dict.fromkeys(l_issues))
-    print l_issues
+    print(l_issues)
 
-    cq_list = sorted(l_issues, key=lambda x: int("".join([i for i in x if i.isdigit()])))
+    try: 
+        cq_list = sorted(l_issues, key=lambda x: int("".join([i for i in x if i.isdigit()])))
+    except:
+        cq_list = l_issues
+
     l_notes = list(dict.fromkeys(l_notes))
 
     cq_dict = dict()
@@ -852,17 +957,32 @@ def main(i_args):
             txtfile.close() 
         if l_args.update_cq:
             for cq in cq_list:
-                print "updating %s with tag info" % cq
+                print("updating %s with tag info" % cq)
                 update_cq_tag_info(cq, l_args.latest_commit)
                 update_keywords(cq)
 
+
+
+    if l_args.update_ewm:
+        if len(cq_list):
+            for cq in cq_list:
+                print("Processing cq_to_ewm")
+                ewmId = cq_to_ewm(cq)
+                if ewmId is None:
+                    continue
+
+                print("updating cq:%s ewmId:%s with tag info" % (cq, ewmId))
+                update_ewm_tag_info(ewmId, l_args.latest_commit)
+
+
+
     # Print commit information to the console
-    print '## %s' %  (l_args.latest_commit)
-    print 'from %s to %s' % (l_args.earliest_commit,l_args. latest_commit)
+    print('## %s' %  (l_args.latest_commit))
+    print('from %s to %s' % (l_args.earliest_commit,l_args. latest_commit))
 
 
     if len(cq_list):
-        print 'Fixes:'
+        print('Fixes:')
         for cq in cq_list:
             link='[{}](https://w3.rchland.ibm.com/projects/bestquest/?defect={})'.format(cq,cq)
             cq_title = "-"
@@ -876,22 +996,22 @@ def main(i_args):
             else:
                 cq_title = cq_fields_list[1]
 
-            print '* %s:`%s`' % (link, cq_title[0:90])
-        print '---'
+            print('* %s:`%s`' % (link, cq_title[0:90]))
+        print('---')
 
     if len(l_notes):
-        print 'Release Notes:'
+        print('Release Notes:')
         for l_note in l_notes:
             if l_note:
-                print '* %s' % (l_note)
+                print('* %s' % (l_note))
 
-    print 'Commits...'
+    print('Commits...')
     for l_report in l_reports:
-        print l_report.to_cl_string()
+        print(l_report.to_cl_string())
 
     # Write to the wiki file if the user set the flag
     if l_args.wiki:
-        print 'Writing to Wiki file...'
+        print('Writing to Wiki file...')
         l_wiki_file = open(l_args.wiki, 'w+')
         header='## %s \n' % (l_args.latest_commit)
         header += "from %s to %s\n" % (l_args.earliest_commit,l_args. latest_commit)
@@ -924,16 +1044,16 @@ def main(i_args):
 
 
         for l_report in l_reports:
-            
-            l_wiki_file.write('%s\n' % l_report.to_string().encode("utf-8"))
- 
+            #l_wiki_file.write('%s\n' % l_report.to_string().encode("utf-8"))
+            l_wiki_file.write('%s\n' % l_report.to_string())
+
         l_wiki_file.write("```\n")
 
         l_wiki_file.close()
    
     # Write to the HTML file if the user set the flag
     if l_args.html_file:
-        print 'Writing to HTML file...'
+        print('Writing to HTML file...')
         l_html_file = open(l_args.html_file, 'w+')
         l_html_file.write('<html><body>\n')
         for l_report in l_reports:
@@ -945,7 +1065,7 @@ def main(i_args):
         for l_issue in l_issues:
             link = ''
             if l_issue[2]:
-                print l_issue[2]
+                print(l_issue[2])
                 l_link = "https://w3.rchland.ibm.com/projects/bestquest/?defect=%s" % l_issue[2]
                 l_html_file.write('<div><a href='+ l_link \
                     +'href="http://www.github.com/' \
