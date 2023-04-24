@@ -13,7 +13,12 @@ def git_show(parms_array):
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
-    print stderroutput
+
+    if stderroutput:
+        print "There is an ERROR in git_show:"
+        print(stderroutput)
+        print "end ERROR ouput"
+
     return stdoutput
 
 def git_log(parms_array):
@@ -23,12 +28,11 @@ def git_log(parms_array):
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
 
-    if 'fatal' in  stdoutput:
-        print('fatal')
-    else:
-        return stdoutput
-
-    return []
+    if stderroutput:
+        print "There is an ERROR in git_log:"
+        print(stderroutput)
+        print "end ERROR ouput"
+    return stdoutput
 
 
 def gh_pr_create(Repo, Branch, body, title):
@@ -36,11 +40,26 @@ def gh_pr_create(Repo, Branch, body, title):
 
     process = subprocess.Popen(gh_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
-#    print(stderroutput)
-    if 'fatal' in  stdoutput:
-        print('git_show fatal')
-    else:
-        print(stdoutput)
+
+    if stderroutput:
+        print "There is an ERROR in gh_pr_create:"
+        print(stderroutput)
+        print "end ERROR ouput"
+
+    print(stdoutput)
+
+def gh_pr_edit(PR_number, Repo, body, title):
+    gh_args = ['gh', 'pr', 'edit', PR_number, '-R', Repo, '-b', body, '-t', title]
+
+    process = subprocess.Popen(gh_args, stdout=PIPE, stderr=PIPE)
+    stdoutput, stderroutput = process.communicate()
+
+    if stderroutput:
+        print "There is an ERROR in gh_pr_create:"
+        print(stderroutput)
+        print "end ERROR ouput"
+
+    print(stdoutput)
 
 def parse_arguments(i_args):
 
@@ -60,11 +79,15 @@ def parse_arguments(i_args):
         '-t', '--title', default='commit', 
         help='-t, --title title for the pull request')
     l_parser.add_argument(
-        '-s', '--sha', default=git_log(['-n 1', '--pretty=format:%h']), 
-        help='-s, --sha sha commit information to use in creating PR')
+        '-n', '--n_entries', default=1, 
+        help='-n, --n_entries number of log commit entries to add to title and body')
     l_parser.add_argument(
         '-d', '--dry-run', dest='dry_run', action='store_true',
         help='perform a dry run only')
+    l_parser.add_argument(
+        '-e', '--edit', default='',
+        help='perform a edit ')
+
     l_parser.add_argument(
         '-v', '--verbose', dest='noisy', action='store_true',
         help='enable verbose status messages')
@@ -80,23 +103,47 @@ def main(i_args):
     l_args = parse_arguments(i_args)
     title=l_args.title
     body=l_args.body
+
     if (l_args.title == 'commit'):
-        parms = [l_args.sha,'--pretty=format:%s', '-s']
+        number = '-n {}'.format(l_args.n_entries)
+        shas = git_log([number, '--pretty=format:%h']).split()
+        
         title="{}: ".format(l_args.branch)
-        title+=git_show(parms)
+        for sha in shas:
+            parms = [sha,'--pretty=format:%s', '-s']
+            title+=git_show(parms)
+            if sha != shas[-1]:
+                title+=' & '
 
     if (l_args.body == 'commit'):
-        parms = [l_args.sha,'--pretty=format:%b', '-s']
-        body = "#### {}\r\n```\r\n".format(title)
-        body+=git_show(parms)
-        body+='```'
+        number = '-n {}'.format(l_args.n_entries)
+        shas = git_log([number, '--pretty=format:%h']).split()
+        commit_title=""
+        body=""
+        for sha in shas:
+            parms = [sha,'--pretty=format:%s', '-s']
+            commit_title=git_show(parms)
+            body += "#### {}\r\n```\r\n".format(commit_title)
+            parms = [sha,'--pretty=format:%b', '-s']
+            body+=git_show(parms)
+            body+='```'
+            if sha != shas[-1]:
+                body+='\r\n'
+
 
     if l_args.dry_run:
-        message_args = (l_args.repo,l_args.branch,body,title )
-        print("gh pr create -R {} -B {} -b '{}' -t '{}'".format(*message_args))
+        if l_args.edit:
+            message_args = (l_args.edit,l_args.repo,l_args.branch,body,title )
+            print ("gh pr edit {} -R {} -B {} -b '{}' -t '{}'".format(*message_args))
+        else:
+            message_args = (l_args.repo,l_args.branch,body,title )
+            print("gh pr create -R {} -B {} -b '{}' -t '{}'".format(*message_args))
 
     else:
-        gh_pr_create(l_args.repo, l_args.branch, body, title)
+        if l_args.edit:
+            gh_pr_edit(l_args.edit, l_args.repo, body, title)
+        else:
+            gh_pr_create(l_args.repo, l_args.branch, body, title)
 
 
 
