@@ -92,7 +92,8 @@ def git_show(sha):
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
     if 'fatal' in  stdoutput:
-        print('git_show fatal')
+        print(stdoutput)
+        print('git_show fatal %s' % sha)
     else:
         print(stdoutput)
 
@@ -112,7 +113,7 @@ def git_log(parms_array):
 
 def find_recipes(i_args):
     
-    git_args = ['git','--no-pager','grep','-l', '-e', '_URI', '--and', '-e', i_args.remote+'/'+i_args.org]
+    git_args = ['git','--no-pager','grep','-l', '-e', '_URI', '--and', '-e', i_args.remote+'/'+i_args.org+'/'+i_args.project_name]
 
     process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
     stdoutput, stderroutput = process.communicate()
@@ -127,6 +128,8 @@ def find_and_process_bumps(args):
     project_sha = args.project_sha
     if args.project_name == "linux":
         candidate_recipes = ['meta-aspeed/recipes-kernel/linux/linux-aspeed_git.bb']
+    elif args.project_name == "sb-signing-framework":
+        candidate_recipes = ['meta-ibm/recipes-support/sfclient/sfclient_git.bb']
     else:
         candidate_recipes = find_recipes(args)
     for recipe in candidate_recipes:
@@ -186,7 +189,7 @@ def find_and_process_bumps(args):
                 l_len = len(commit_dict[key])
                 shortlog += '{} ({}):\n'.format(key,l_len)
                 for commit_msg in commit_dict[key]:
-                    shortlog += '  {}\n'.format(commit_msg)
+                    shortlog += '  {}\n'.format(commit_msg.encode('utf-8'))
                 shortlog += '\n'
 
             location = ""
@@ -298,10 +301,17 @@ def get_uri_info(recipe):
     if l_uri_match:
         l_uri = l_uri_match.group(1)
 
+    l_uri_match = re.search('_URI:p10bmc[+=? ]+"([-a-zA-Z0-9/:\.@]+);', recipe)
+    if l_uri_match:
+        l_uri = l_uri_match.group(1)
 
     l_uri_match = re.search('\+SRC_URI[+=? ]+"([-a-zA-Z0-9/:\.@]+);', recipe)
     if l_uri_match:
         l_uri = l_uri_match.group(1)
+
+    if "git://github.com/open-power/sb-signing-framework" in recipe:
+        l_uri = "github.com/open-power/sb-signing-framework"
+    print l_uri
 
     return l_uri
 
