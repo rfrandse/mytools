@@ -975,11 +975,17 @@ def parse_arguments(i_args):
         help="Be verbose",
         action="store_const", dest="loglevel", const=logging.INFO,)
     l_parser.add_argument(
+        '-t', '--tag_repo_uri',
+        default='github.ibm.com/rfrandse/openbmc',
+        help='The URI of the repo to get tag commit information ' \
+             +'github.ibm.com/rfrandse/openbmc default ')
+    l_parser.add_argument(
         '-R', '--repo_uri',
         default='github.ibm.com/openbmc/openbmc',
         help='The URI of the repo to get commit information ' \
              +'github.ibm.com/openbmc/openbmc for GHE ' \
              +'github.com/openbmc/openbmc for master')
+
     l_parser.add_argument(
         '-B', '--branch',
         default='1020-ghe',
@@ -1006,7 +1012,7 @@ def parse_arguments(i_args):
         '-D', dest='dir', default=None,
         help='set a dirctory path to write release files ')
     l_parser.add_argument(
-        '--gsa', dest='gsa_tag_info', action='store_true',
+        '--gsa', dest='gsa_tag_info', default=None, 
         help='If set this script will write a file <latest_commit>.txt to ' \
              +'/gsa/ausgsa/projects/b/bmctaglists/ ' \
              +'latest_commit option text is tag name  ')
@@ -1039,12 +1045,24 @@ def main(i_args):
 #    logging.error('This is an error message')
 #    logging.critical('This is a critical message')
 
+    l_latest_commit = l_args.latest_commit
+
+    if l_args.gsa_tag_info:
+        my_repo = get_repo(l_args.tag_repo_uri)
+        l_commit = my_repo.get_commit(l_args.latest_commit)
+        # convert to sha value, since tag hasn't been released
+        l_latest_commit = l_commit.commit.sha
+
+    
+    print(l_args.gsa_tag_info)
+
+#   exit()
 
     # Generate the commit reports
     l_reports = generate_commit_reports(
         l_args.repo_uri,
         l_args.earliest_commit, 
-        l_args.latest_commit)
+        l_latest_commit)
 
     tag_name = None
     release_dir =  os.getcwd()
@@ -1120,6 +1138,49 @@ def main(i_args):
 
 
     if l_args.gsa_tag_info:
+
+
+        prev_txtfile = ''
+        if l_args.dry_run:
+            p_filename = '%s.txt' % (l_args.earliest_commit)
+        else:
+            p_filename = '/gsa/ausgsa/projects/b/bmctaglists/%s.txt' % (l_args.earliest_commit) 
+
+        try: 
+            with open(p_filename, 'r') as f:
+                prev_txtfile = f.read()
+                print(prev_txtfile)
+
+
+                l_prev_stgDefects = []
+                l_prev_reports = generate_commit_reports(
+                    l_args.repo_uri,
+                    l_args.gsa_tag_info,
+                    l_args.earliest_commit)
+
+                for l_prev_report in l_prev_reports:
+                    l_prev_stgDefects.extend(l_prev_report.get_all_stgDefects())
+                
+                l_prev_stgDefects =  list(dict.fromkeys(l_prev_stgDefects))
+                l_prev_stgDefects.sort()
+
+                for prev_ewmId in l_prev_stgDefects:
+                    universalid, summary, owner = read_ewm_universalid_summary_owner(prev_ewmId)
+                    print(universalid)
+                    if universalid in prev_txtfile:
+                        continue
+                    print("adding previous defect to stgDefects list: ",prev_ewmId)
+                    l_stgDefects.append(prev_ewmId)
+                #get rid of duplictates and sort list
+                l_stgDefects =  list(dict.fromkeys(l_stgDefects))
+                l_stgDefects.sort()
+                print("gsa defect list: ", l_stgDefects)
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            logging.warning("warning with previous defects list:",exc_type, fname, exc_tb.tb_lineno)
+
+
         #process STGDefects 
         if len(l_stgDefects):
             if l_args.dry_run:
@@ -1127,12 +1188,13 @@ def main(i_args):
             else:
                 filename = '/gsa/ausgsa/projects/b/bmctaglists/%s.txt' % (l_args.latest_commit) 
             with open(filename, 'w+') as txtfile:
+                tmpStr = ""
                 for ewmId in l_stgDefects:
                     universalid, summary, owner = read_ewm_universalid_summary_owner(ewmId)
                     #Format of report  
                     #Universal Id|Summary|Owner
-                    tmpStr = "{}|{}|{}\n".format(universalid, summary, owner)
-                    txtfile.write(tmpStr)
+                    tmpStr += "{}|{}|{}\n".format(universalid, summary, owner)
+                txtfile.write(tmpStr)
             print("\nWriting:", filename)
 
 
