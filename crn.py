@@ -16,11 +16,19 @@ PIPE = subprocess.PIPE
 
 import shlex
 
-sys.path.append("/home/rfrandse/ewm")
+#    print(script_directory)
+#    print(os.path.islink(script_directory))
+#    print('__file__:    ', __file__)
+#    print('os.path.realpath__file__:    ',os.path.realpath(__file__))
+
+prog_name = os.path.basename(os.path.realpath(__file__))
+ewm_dir = os.path.realpath(__file__).replace(prog_name, 'ewm')
+
+sys.path.append("ewm_dir")
 import ewm
 ewm_instance = ewm.Ewm()
 
-
+script_directory = os.path.dirname(os.path.abspath(sys.argv[0]))
 
 workspace_dir = os.getcwd()
 
@@ -40,30 +48,6 @@ def subtract_lists(A_list,B_list):
 def intersect_lists(A_list,B_list):
     return list(set(A_list).intersection(B_list))
 
-
-def get_repo_info(recipe):
-
-
-    # Get the address location of the subrepo
-    l_uri = None
-    l_uri_match = re.search('KSRC[+=? ]+"([-a-zA-Z0-9/:\.@]+);', recipe)
-    if l_uri_match:
-        l_uri = l_uri_match.group(1)
-
-    l_uri_match = re.search('_URI[+=? ]+"([-a-zA-Z0-9/:\.]+)"', recipe)
-    if l_uri_match:
-        l_uri = l_uri_match.group(1)
-
-    l_uri_match = re.search('_URI[+=? ]+"([-a-zA-Z0-9/:\.@]+);', recipe)
-    if l_uri_match:
-        l_uri = l_uri_match.group(1)
-
-
-    l_uri_match = re.search('\+SRC_URI[+=? ]+"([-a-zA-Z0-9/:\.@]+);', recipe)
-    if l_uri_match:
-        l_uri = l_uri_match.group(1)
-
-    return l_uri
 
 def get_bump_info(i_file, i_repo):
 
@@ -97,7 +81,7 @@ def get_bump_info(i_file, i_repo):
     return l_uri, l_new_hash, l_old_hash
 
 
-def get_repo(i_uri):
+def get_repo(i_uri, i_branch='master'):
 
     l_uri = i_uri.strip()
     l_values = l_uri.split('/')
@@ -110,7 +94,6 @@ def get_repo(i_uri):
             logging.info('{}'.format(l_repo_name))
             l_github = Github(login_or_token = config.py_ibm_token, base_url='https://github.ibm.com/api/v3')
             l_repo = l_github.get_repo(l_repo_name)
-        
         elif 'github.com' in l_value:
             l_repo_name = l_values[count+1] + "/" + l_values[count+2]
             l_repo_name = rreplace(l_repo_name, ".git", '', 1)                
@@ -118,6 +101,10 @@ def get_repo(i_uri):
             l_github = Github(login_or_token = config.py_token)
             l_repo = l_github.get_repo(l_repo_name)
         count += 1
+
+    # only set branch if it is the GHE openbmc/openbmc repostory
+    if l_uri in "github.ibm.com/openbmc/openbmc":
+        l_repo.edit(default_branch=i_branch)
 
 
     return l_repo
@@ -340,7 +327,7 @@ def get_closed_issues(i_repo, i_commit):
                     pull_data = i_repo.get_pull(pr_number)
                 except:
                     logging.warning("Unable to process PR:{}".format(pr_number))
-                    return l_closed_issues, l_notes
+                    return l_closed_issues, l_notes, l_stgDefects
                 list1, list2 = find_fixes(pull_data.body)
                 l_closed_issues.extend(list1)
                 l_stgDefects.extend(list2)
@@ -482,82 +469,6 @@ def git_log(parms_array):
     return []
 
 
-def git_clone(repo_name, url):
-    git_args = ['git', 'clone', url, repo_name]
-
-    process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-    if 'fatal' in  stdoutput:
-        print('fatal git_clone')
-
-def git_fetch(_cwd):
-    saved_cwd = os.getcwd()
-    global workspace_dir
-    os.chdir(workspace_dir)
-    os.chdir(_cwd)
-
-    git_args = ['git', 'fetch', '--all']
-
-    process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-    if 'fatal' in  stdoutput:
-        print('fatal git_fetch')
-    os.chdir(saved_cwd)
-
-def git_reset(_cwd):
-    saved_cwd = os.getcwd()
-    global workspace_dir
-    os.chdir(workspace_dir)
-    os.chdir(_cwd)
-    git_args = ['git', 'reset', '--hard', 'FETCH_HEAD']
-
-    process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-    if 'fatal' in  stdoutput:
-        print('fatal git_reset')
-    os.chdir(saved_cwd)
-
-
-
-def git_branch(_cwd):
-    saved_cwd = os.getcwd()
-    global workspace_dir
-    os.chdir(workspace_dir)
-    os.chdir(_cwd)
-
-    git_args = ['git', 'branch' ]
-
-    process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-    if 'fatal' in  stdoutput:
-        print('fatal git_branch')
-    os.chdir(saved_cwd)
-
-    branch = stdoutput.split('*')[1]
-    branch = branch.split()[0]
-
-    return branch.strip()
-
-def is_sha_commit(sha_value, _cwd):
-    saved_cwd = os.getcwd()
-    global workspace_dir
-    os.chdir(workspace_dir)
-    os.chdir(_cwd)
-    git_args = ['git', 'cat-file', '-t', sha_value ]
-
-    process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-#    if 'fatal' in  stdoutput:
-#        print('fatal')
-    os.chdir(saved_cwd)
-
-    return('commit' in stdoutput)
-
 
 def cq_to_ewm(cq_number):
 
@@ -587,52 +498,6 @@ def cq_to_ewm(cq_number):
     return None
 
 
-
-
-def cq_info(cq_number):
-    args_str = "cqcmd.pl -db AIXOS -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog -action query  -fields \"force_commit::yes~~sql::SELECT universal_id,headline, Ownerinfo from defect where Universal_id = \'"
-    args_str += "{0}\'\"".format(cq_number)
-    cq_args = shlex.split(args_str)
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-
-    return stdoutput
-
-def read_cq_keywords(cq_number):
-    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
-            -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
-            -action query \
-            -fields \"force_commit::yes~~sql::SELECT keywords from defect where Universal_id = \'"
-    args_str += "{0}\'\"".format(cq_number)
-    cq_args = shlex.split(args_str)
-
-
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-
-    results = rreplace(stdoutput,'|\n','', 1)
-
-    return results
-
-def write_cq_keywords(cq_number, data):
-
-    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
-        -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
-        -action modify -univid {0} \
-        -fields \"force_commit::yes~~Keywords::{1} \""\
-        .format(cq_number, data)
-
-    
-    cq_args = shlex.split(args_str)
-
-
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-
-    return stdoutput
 
 def read_ewm_universalid_summary_owner(ewmId):
     try:
@@ -695,139 +560,7 @@ def update_ewm_priority_justification_tag_info(ewmId, tag):
     print("Writing",ewmId,":",new_text)
     write_ewm_priority_justification(ewmId, new_text)
 
-
-
-def read_cq_priority_justification(cq_number):
-    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
-            -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
-            -action query \
-            -fields \"force_commit::yes~~sql::SELECT Priority_Justification, keywords from defect where Universal_id = \'"
-    args_str += "{0}\'\"".format(cq_number)
-    cq_args = shlex.split(args_str)
-
-
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-
-    results = rreplace(stdoutput,'|\n','', 1)
-
-    return results
-
-def write_cq_priority_justification(cq_number, data):
-
-    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
-        -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
-        -action modify -univid {0} \
-        -fields \"force_commit::yes~~Priority_Justification::{1} \""\
-        .format(cq_number, data)
-
-    
-    cq_args = shlex.split(args_str)
-
-
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput=stdoutput.decode()
-
-    return stdoutput
-
-def read_cq_notes(cq_number):
-    l_tag_list = []
-    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
-            -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
-            -action query  -fields \"force_commit::yes~~sql::SELECT Notes_Log from defect where Universal_id = \'"
-    args_str += "{0}\'\"".format(cq_number)
-    cq_args = shlex.split(args_str)
-
-
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    results=stdoutput.decode()
-
-    return results
-
-def write_cq_note(cq_number, data):
-
-    args_str = "/gsa/ausgsa/projects/p/pfd_rat_tools/prod/cqcmd.pl -db AIXOS \
-        -schema STGC_AIX -cqhost cqweb.rchland.ibm.com  -port 6600 -relog \
-        -action modify -univid {0} \
-        -fields \"force_commit::yes~~Note_Entry::{1} \""\
-        .format(cq_number, data)
-
-    
-    cq_args = shlex.split(args_str)
-
-
-    process = subprocess.Popen(cq_args, stdout=subprocess.PIPE)
-    stdoutput, stderroutput = process.communicate()
-    results=stdoutput.decode()
-
-    return results
-
-def check_for_tag(tag_info, data):
-    results = False
-    for line in data.splitlines():
-        if (tag_info in line):
-            results = True
-    return results
-
-def update_keywords(cq_number):
-
-    original_text = read_cq_keywords(cq_number)
-
-    matches = re.findall('merged',original_text,flags=re.I)
-    if matches:
-        return
-    new_text = original_text.strip() + "\nMerged"
-    write_cq_keywords(cq_number, new_text)
-
-
-def update_cq_tag_info(cq_number, tag):
-    tag_info = "OPENBMC_TAG:%s" % tag
-    if not check_for_tag(tag_info, read_cq_notes(cq_number)):
-        write_cq_note(cq_number,tag_info)
-
-    original_text = read_cq_priority_justification(cq_number)
-    if tag_info in original_text:
-        return
-    new_text = tag_info + "\n" + original_text
-    write_cq_priority_justification(cq_number, new_text)
-
-def switch_branch(branch_name, _cwd):
-    saved_cwd = os.getcwd()
-    global workspace_dir
-    os.chdir(workspace_dir)
-    os.chdir(_cwd)
-
-    git_args = ['git', 'checkout', branch_name]
-
-    process = subprocess.Popen(git_args, stdout=PIPE, stderr=PIPE)
-    stdoutput, stderroutput = process.communicate()
-    stdoutput = stdoutput.decode()
-
-    if 'fatal' in  stdoutput:
-        print('fatal switch_branch')
-    os.chdir(saved_cwd)
-
-
-def git_clone_or_reset(repo_name, url, args):
-    #Only clone in workspace
-    global workspace_dir
-    os.chdir(workspace_dir)
-
-    if not os.path.exists(repo_name):
-        log('cloning into {}...'.format(repo_name), args)
-        git_clone(repo_name, url)
-        print('clone worked:{}'.format(os.path.exists(repo_name)))
-    else:
-        log('{} exists, updating...'.format(repo_name), args)
-        git_fetch(_cwd=repo_name)
-        git_reset(_cwd=repo_name)
-
-
-
-def generate_commit_reports(i_repo_uri, i_begin_commit,
+def generate_commit_reports(i_branch, i_repo_uri, i_begin_commit,
                             i_end_commit):
     # Get the repo that the user requested
     
@@ -835,7 +568,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
     commit_dict = dict()
     commit_msg_dict = dict()
 
-    l_repo = get_repo(i_repo_uri)
+    l_repo = get_repo(i_repo_uri, i_branch)
     if l_repo == None:
         return l_reports
 
@@ -925,6 +658,7 @@ def generate_commit_reports(i_repo_uri, i_begin_commit,
                         logging.debug('  Bumped')
                         l_subrepo_path = l_subrepo_uri.split('/')[-1]
                         l_subreports = generate_commit_reports(
+                        i_branch,
                         l_subrepo_uri,
                             l_subrepo_old_hash,
                             l_subrepo_new_hash)
@@ -974,50 +708,54 @@ def parse_arguments(i_args):
         '-v', '--verbose',
         help="Be verbose",
         action="store_const", dest="loglevel", const=logging.INFO,)
+
     l_parser.add_argument(
         '-R', '--repo_uri',
         default='github.ibm.com/openbmc/openbmc',
         help='The URI of the repo to get commit information ' \
              +'github.ibm.com/openbmc/openbmc for GHE ' \
              +'github.com/openbmc/openbmc for master')
+
     l_parser.add_argument(
-        '-B', '--branch',
-        default='1020-ghe',
+        'branch',
         help='branch of repo to get commit information ')
     l_parser.add_argument(
         'earliest_commit',
         help='A reference to the earliest commit to get information for')
-
     l_parser.add_argument(
-        'latest_commit',
-        help='A reference (branch name, HEAD, SHA, etc.) to the most ' \
-             +'recent commit to get information for')
-
-    l_parser.add_argument(
-        '--html_file',
+        '-t', '--new_tag',
         default=None,
-        help='If set to a file path, this script will write an HTML ' \
-             +'version of the console output to the file path given')
+        help='new tag name ')
     l_parser.add_argument(
-        '--wiki', dest='create_wiki', action='store_true',
+        '-T', '--no-tag', dest='no_tag', action='store_true',
+        help='Do not tag. Skip actually tagging. Test output')
+
+
+    l_parser.add_argument(
+        '-c', '--latest_commit',
+        default='HEAD',
+        help='A reference (branch name, HEAD, SHA, etc.) to the most ' \
+             +'latest commit to get information for and earliest commit' \
+             +'default is HEAD of specified branch')
+
+    l_parser.add_argument(
+       '-w', '--wiki', dest='create_wiki', action='store_true',
         help='If set create release wiki page and update reference ' \
              +'links in various release pages')
     l_parser.add_argument(
         '-D', dest='dir', default=None,
         help='set a dirctory path to write release files ')
     l_parser.add_argument(
-        '--gsa', dest='gsa_tag_info', action='store_true',
-        help='If set this script will write a file <latest_commit>.txt to ' \
+        '--gsa', dest='gsa_tag_info', action='store_true', 
+        help='If set this script will write a file <new_tag>.txt to ' \
              +'/gsa/ausgsa/projects/b/bmctaglists/ ' \
-             +'latest_commit option text is tag name  ')
+             +'new_tag text is tag name  ')
     l_parser.add_argument(
-        '-u','--update', dest='update_cq', action='store_true',
-        help='If set this script will update priority justifcation ' \
-             +'with tag name')
-    l_parser.add_argument(
-        '-E','--ewm', dest='update_ewm', action='store_true',
+        '-e','--ewm', dest='update_ewm', action='store_true',
         help='If set this script will update priority justifcation ' \
              +'with tag name in ewm ')
+    l_parser.add_argument(
+        '--version', action='version', version='%(prog)s 1.0')
 
     return l_parser.parse_args(i_args)
 
@@ -1040,28 +778,27 @@ def main(i_args):
 #    logging.critical('This is a critical message')
 
 
+    print(l_args)
+    l_repo = get_repo(l_args.repo_uri,l_args.branch)
+
+    # convert latest_commit to full sha 
+    l_commit = l_repo.get_commit(l_args.latest_commit)
+    l_latest_commit = l_commit.commit.sha
+
+
+    if l_args.gsa_tag_info or l_args.create_wiki or l_args.update_ewm:
+        if l_args.new_tag is None:
+            logging.error("--gsa or -w or -e option requires [-t, --new_tag] to be set")
+            exit()
+
+    
     # Generate the commit reports
     l_reports = generate_commit_reports(
+        l_args.branch,
         l_args.repo_uri,
         l_args.earliest_commit, 
-        l_args.latest_commit)
+        l_latest_commit)
 
-    tag_name = None
-    release_dir =  os.getcwd()
-    l_match = re.search('fw(\d\d\d\d).',l_args.latest_commit)
-    if (l_match):
-        release_dir = l_match.group(1)
-        if l_args.dir:
-            release_dir = l_args.dir
-        if not os.path.exists(release_dir):
-            logging.error("directory {} doesn't exist. Please create".format(release_dir))
-            exit()
-
-    if l_args.dir:
-        release_dir = l_args.dir
-        if not os.path.exists(release_dir):
-            logging.error("directory {} doesn't exist. Please create".format(release_dir))
-            exit()
 
     l_issues = []
     l_notes = []
@@ -1116,24 +853,53 @@ def main(i_args):
             print(l_stgDefects)
 
 
- 
-
-
     if l_args.gsa_tag_info:
         #process STGDefects 
         if len(l_stgDefects):
             if l_args.dry_run:
-                filename = '%s.txt' % (l_args.latest_commit)
+                filename = '%s.txt' % (l_args.new_tag)
             else:
-                filename = '/gsa/ausgsa/projects/b/bmctaglists/%s.txt' % (l_args.latest_commit) 
+                filename = '/gsa/ausgsa/projects/b/bmctaglists/%s.txt' % (l_args.new_tag) 
             with open(filename, 'w+') as txtfile:
+                tmpStr = ""
                 for ewmId in l_stgDefects:
                     universalid, summary, owner = read_ewm_universalid_summary_owner(ewmId)
                     #Format of report  
                     #Universal Id|Summary|Owner
-                    tmpStr = "{}|{}|{}\n".format(universalid, summary, owner)
-                    txtfile.write(tmpStr)
+                    tmpStr += "{}|{}|{}\n".format(universalid, summary, owner)
+                txtfile.write(tmpStr)
             print("\nWriting:", filename)
+
+
+    tags_dict = dict()
+    commit_tags_dict = dict()
+
+    if l_args.new_tag:
+
+        print("building tag list", end=" ", flush=True)
+        for github_tag in l_repo.get_tags():
+            tags_dict.setdefault(github_tag.name, []).append(github_tag.commit.sha)
+            commit_tags_dict.setdefault(github_tag.commit.sha, []).append(github_tag.name)
+            print(".", end ="", flush=True)
+        print("\n")
+
+        if l_latest_commit in commit_tags_dict:
+            print("sha has tags=", end ="")
+            for tag_name in commit_tags_dict[l_latest_commit]:
+                print(tag_name, end =", ")
+            print("\n")
+
+        if l_args.new_tag in tags_dict:
+            # this means tag already exists 
+            print("Do Nothing! Tag exist. sha value:")
+            print(tags_dict[l_args.new_tag][-1])
+        elif l_args.no_tag:
+            print("tag option is off. Not actually tagging")
+        else:
+            t = l_repo.create_git_tag(tag=l_args.new_tag, message=l_args.new_tag, type="commit", object=l_latest_commit)
+            l_repo.create_git_ref('refs/tags/{}'.format(t.tag), t.sha)
+            print("create and push tag: " + l_args.new_tag)
+
 
 
     if l_args.update_ewm:
@@ -1141,13 +907,13 @@ def main(i_args):
         if len(l_stgDefects):
             for ewmId in l_stgDefects:
                 print("updating ewmId:%s with tag info" % (ewmId))
-                update_ewm_priority_justification_tag_info(ewmId, l_args.latest_commit)
+                update_ewm_priority_justification_tag_info(ewmId, l_args.new_tag)
                 update_ewm_tags_field(ewmId)
 
 
     # Print commit information to the console
-    print('## %s' %  (l_args.latest_commit))
-    print('from %s to %s' % (l_args.earliest_commit,l_args. latest_commit))
+    print('## %s' %  (l_args.new_tag))
+    print('from %s to %s[%s]' % (l_args.earliest_commit, l_args.new_tag, l_latest_commit[0:7]))
 
     if len(l_stgDefects):
         print('Fixes STGDefects:')
@@ -1172,11 +938,29 @@ def main(i_args):
   
     # Write to the wiki file if the user set the flag
     if l_args.create_wiki:
-        release_wiki = release_dir + "/" + l_args.latest_commit + ".md"
+
+        wiki_release_dir =  os.getcwd()
+        l_match = re.search('fw(\d\d\d\d).',l_args.new_tag)
+        if (l_match):
+            wiki_release_dir = l_match.group(1)
+            if l_args.dir:
+                wiki_release_dir = l_args.dir
+            if not os.path.exists(wiki_release_dir):
+                logging.error("directory {} doesn't exist. Please create".format(wiki_release_dir))
+                exit()
+
+        if l_args.dir:
+            wiki_release_dir = l_args.dir
+            if not os.path.exists(wiki_release_dir):
+                logging.error("directory {} doesn't exist. Please create".format(release_dir))
+                exit()
+
+
+        release_wiki = wiki_release_dir + "/" + l_args.new_tag + ".md"
         print('Writing to Wiki file...{}'.format(release_wiki))
         with open(release_wiki, 'w+') as l_wiki_file:
-            header='## %s \n' % (l_args.latest_commit)
-            header += "from %s to %s\n" % (l_args.earliest_commit,l_args. latest_commit)
+            header='## %s \n' % (l_args.new_tag)
+            header += "from %s to %s[%s]\n" % (l_args.earliest_commit,l_args.new_tag,l_latest_commit[0:7])
             l_wiki_file.write(header)
 
             if len(l_stgDefects):
@@ -1204,11 +988,11 @@ def main(i_args):
 
             l_wiki_file.write("```\n")
 
-        l_match = re.match(r'(fw[0-9].+)-[0-9].*', l_args.latest_commit)
+        l_match = re.match(r'(fw[0-9].+)-[0-9].*', l_args.new_tag)
         if l_match:
             release_link_file = l_match.group(1) + ".md"
             if os.path.exists(release_link_file):
-                tag = l_args.latest_commit
+                tag = l_args.new_tag
                 c_date = datetime.now().strftime("%Y-%m-%d")
                 line = "*   [{}](https://github.ibm.com/openbmc/release-notes/wiki/{})     {}".format(tag,tag,c_date)
                 update_release_file(release_link_file, line)
@@ -1225,36 +1009,6 @@ def main(i_args):
             else:
                 logging.error("Release link file not found: {}".format(release_link_file))
 
-            
-    # Write to the HTML file if the user set the flag
-    if l_args.html_file:
-        print('Writing to HTML file...')
-        l_html_file = open(l_args.html_file, 'w+')
-        l_html_file.write('<html><body>\n')
-        for l_report in l_reports:
-            l_html_file.write(l_report.to_html())
-#        l_html_file.write('<p>' + str(l_total_insertions) \
-#                          + ' insertions and ' + str(l_total_deletions) \
-#                          + ' deletions</p>')
-        l_html_file.write('<div>Closed Issues</div>')
-        for l_issue in l_issues:
-            link = ''
-            if l_issue[2]:
-                print(l_issue[2])
-                l_link = "https://w3.rchland.ibm.com/projects/bestquest/?defect=%s" % l_issue[2]
-                l_html_file.write('<div><a href='+ l_link \
-                    +'href="http://www.github.com/' \
-                    + re.sub('#', '/issues/', l_issue[0]) \
-                    + '" target="_blank">' + l_issue[0] + '</a> ' \
-                    + l_issue[1] + '</div>')
-
-            else:
-                l_html_file.write('<div><a href="http://www.github.com/' \
-                              + re.sub('#', '/issues/', l_issue[0]) \
-                              + '" target="_blank">' + l_issue[0] + '</a> ' \
-                              + l_issue[1] + '</div>')
-        l_html_file.write('</body></html>')
-        l_html_file.close()
 
 if __name__ == '__main__':
     main(sys.argv[1:])
