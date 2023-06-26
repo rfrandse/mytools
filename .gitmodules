@@ -1,0 +1,3 @@
+[submodule "rtcwi-cli"]
+	path = rtcwi-cli
+	url = https://github.ibm.com/SystemsDevOpsSolutions/rtcwi-cli.git

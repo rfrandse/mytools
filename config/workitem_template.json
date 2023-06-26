@@ -1,0 +1,12 @@
+{
+    "Filed Against" : "fips_build",
+    "Found In" : "Unspecified",
+    "Phase Found" : "Unspecified",
+    "Severity" : "3 - Moderate",
+    "HW Platform" : "n/a",
+    "System Name" : "n/a",
+    "STG Defect Type" : "Feature",
+    "Owned By": "MYEMAIL@ibm.com",
+    "Summary": "test - work item template for creating a defect",
+    "Description": "Testing to create an STG Defect from the ewm.py commandline tool"
+}
