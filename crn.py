@@ -22,11 +22,14 @@ import shlex
 #    print('os.path.realpath__file__:    ',os.path.realpath(__file__))
 
 prog_name = os.path.basename(os.path.realpath(__file__))
-#ewm_dir = os.path.realpath(__file__).replace(prog_name, 'ewm')
-ewm_dir = "/home/rfrandse/mytools/1ewm"
-print(ewm_dir)
+ewm_dir = os.path.realpath(__file__).replace(prog_name, 'ewm')
 
-sys.path.append("ewm_dir")
+#ewm_dir = "/home/rfrandse/mytools/ewm"
+print(ewm_dir)
+sys.path.append(ewm_dir)
+#sys.path.append("/home/rfrandse/ewm")
+
+
 import ewm
 ewm_instance = ewm.Ewm()
 
